@@ -1,0 +1,62 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1790112223091-8
+      author: daniladotsenko
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: username, value: "alice" }
+              - column: { name: password, value: "password" }
+              - column: { name: created_at, valueDate: "2024-01-01T10:00:00" }
+              - column: { name: updated_at, valueDate: "2024-01-01T10:00:00" }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: username, value: "bob" }
+              - column: { name: password, value: "password" }
+              - column: { name: created_at, valueDate: "2024-01-01T10:00:00" }
+              - column: { name: updated_at, valueDate: "2024-01-01T10:00:00" }
+
+  - changeSet:
+      id: 1790112223091-9
+      author: daniladotsenko
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - insert:
+            tableName: tasks
+            columns:
+              - column: { name: name, value: "Написать ТЗ" }
+              - column: { name: status, value: "IN_PROGRESS" }
+              - column: { name: category, value: "WORK" }
+              - column: { name: owner_id, valueComputed: "(SELECT id FROM users WHERE username = 'alice')" }
+              - column: { name: created_at, valueDate: "2024-01-02T09:00:00" }
+              - column: { name: updated_at, valueDate: "2024-01-02T09:00:00" }
+        - insert:
+            tableName: tasks
+            columns:
+              - column: { name: name, value: "Сходить в зал" }
+              - column: { name: status, value: "IN_PROGRESS" }
+              - column: { name: category, value: "HEALTH" }
+              - column: { name: owner_id, valueComputed: "(SELECT id FROM users WHERE username = 'alice')" }
+              - column: { name: created_at, valueDate: "2024-01-03T18:00:00" }
+              - column: { name: updated_at, valueDate: "2024-01-03T18:00:00" }
+        - insert:
+            tableName: tasks
+            columns:
+              - column: { name: name, value: "Прочитать книгу" }
+              - column: { name: status, value: "COMPLETED" }
+              - column: { name: category, value: "EDUCATION" }
+              - column: { name: owner_id, valueComputed: "(SELECT id FROM users WHERE username = 'bob')" }
+              - column: { name: created_at, valueDate: "2024-01-04T20:00:00" }
+              - column: { name: updated_at, valueDate: "2024-01-05T08:00:00" }
+        - insert:
+            tableName: tasks
+            columns:
+              - column: { name: name, value: "Убраться в комнате" }
+              - column: { name: status, value: "CANCELED" }
+              - column: { name: category, value: "HOME" }
+              - column: { name: owner_id, valueComputed: "(SELECT id FROM users WHERE username = 'bob')" }
+              - column: { name: created_at, valueDate: "2024-01-06T12:00:00" }
+              - column: { name: updated_at, valueDate: "2024-01-06T12:00:00" }

@@ -1,0 +1,129 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1790112223091-1
+      author: daniladotsenko
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - createSequence:
+            incrementBy: 50
+            sequenceName: revinfo_seq
+            startValue: 1
+  - changeSet:
+      id: 1790112223091-2
+      author: daniladotsenko
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - createTable:
+            columns:
+              - column:
+                  constraints:
+                    nullable: false
+                  name: rev
+                  type: BIGINT
+              - column:
+                  name: entityname
+                  type: VARCHAR(255)
+            tableName: revchanges
+  - changeSet:
+      id: 1790112223091-3
+      author: daniladotsenko
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - createTable:
+            columns:
+              - column:
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: pk_revinfo
+                  name: rev
+                  type: BIGINT
+              - column:
+                  name: revtstmp
+                  type: BIGINT
+            tableName: revinfo
+  - changeSet:
+      id: 1790112223091-4
+      author: daniladotsenko
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - createTable:
+            columns:
+              - column:
+                  autoIncrement: true
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: pk_tasks
+                  name: id
+                  type: BIGINT
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+              - column:
+                  name: status
+                  type: VARCHAR(255)
+              - column:
+                  name: category
+                  type: VARCHAR(255)
+              - column:
+                  name: owner_id
+                  type: BIGINT
+              - column:
+                  name: created_at
+                  type: DATETIME
+              - column:
+                  name: updated_at
+                  type: DATETIME
+            tableName: tasks
+  - changeSet:
+      id: 1790112223091-5
+      author: daniladotsenko
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - createTable:
+            columns:
+              - column:
+                  autoIncrement: true
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: pk_users
+                  name: id
+                  type: BIGINT
+              - column:
+                  name: username
+                  type: VARCHAR(255)
+              - column:
+                  name: password
+                  type: VARCHAR(255)
+              - column:
+                  name: created_at
+                  type: DATETIME
+              - column:
+                  name: updated_at
+                  type: DATETIME
+            tableName: users
+  - changeSet:
+      id: 1790112223091-6
+      author: daniladotsenko
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - addForeignKeyConstraint:
+            baseColumnNames: owner_id
+            baseTableName: tasks
+            constraintName: FK_TASKS_ON_OWNER
+            referencedColumnNames: id
+            referencedTableName: users
+  - changeSet:
+      id: 1790112223091-7
+      author: daniladotsenko
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - addForeignKeyConstraint:
+            baseColumnNames: rev
+            baseTableName: revchanges
+            constraintName: fk_revchanges_on_default_tracking_modified_entities_changelog
+            referencedColumnNames: rev
+            referencedTableName: revinfo
+
