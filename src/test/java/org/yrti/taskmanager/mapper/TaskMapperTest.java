@@ -9,6 +9,8 @@ import org.yrti.taskmanager.model.User;
 import org.yrti.taskmanager.model.enums.Category;
 import org.yrti.taskmanager.model.enums.Status;
 
+import java.time.Instant;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
@@ -19,13 +21,15 @@ class TaskMapperTest {
     @Test
     void mapsCreateRequestWithOwner() {
         User owner = User.builder().id(7L).username("alice").build();
-        TaskCreateRequest request = new TaskCreateRequest("Write tests", Status.IN_PROGRESS, Category.WORK, owner.getId());
+        Instant dueAt = Instant.parse("2026-10-20T12:00:00Z");
+        TaskCreateRequest request = new TaskCreateRequest("Write tests", Status.IN_PROGRESS, Category.WORK, owner.getId(), dueAt);
 
         Task task = mapper.toEntity(request, owner);
 
         assertEquals("Write tests", task.getName());
         assertEquals(Status.IN_PROGRESS, task.getStatus());
         assertEquals(Category.WORK, task.getCategory());
+        assertEquals(dueAt, task.getDueAt());
         assertSame(owner, task.getOwner());
     }
 
@@ -39,7 +43,8 @@ class TaskMapperTest {
                 .category(Category.WORK)
                 .owner(owner)
                 .build();
-        TaskUpdateRequest request = new TaskUpdateRequest("New name", Status.COMPLETED, Category.EDUCATION);
+        Instant dueAt = Instant.parse("2026-10-20T12:00:00Z");
+        TaskUpdateRequest request = new TaskUpdateRequest("New name", Status.COMPLETED, Category.EDUCATION, dueAt);
 
         mapper.updateEntity(task, request);
 
@@ -47,6 +52,7 @@ class TaskMapperTest {
         assertEquals("New name", task.getName());
         assertEquals(Status.COMPLETED, task.getStatus());
         assertEquals(Category.EDUCATION, task.getCategory());
+        assertEquals(dueAt, task.getDueAt());
         assertSame(owner, task.getOwner());
     }
 }

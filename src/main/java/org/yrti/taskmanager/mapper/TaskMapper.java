@@ -25,6 +25,7 @@ public interface TaskMapper {
     @Mapping(target = "name", source = "name")
     @Mapping(target = "status", source = "status")
     @Mapping(target = "category", source = "category")
+    @Mapping(target = "dueAt", source = "dueAt")
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "owner", ignore = true)
     @Mapping(target = "createdAt", ignore = true)

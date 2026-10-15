@@ -10,6 +10,7 @@ import org.yrti.taskmanager.model.enums.Category;
 import org.yrti.taskmanager.model.enums.Status;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 @Entity
@@ -32,6 +33,9 @@ public class Task {
 
     @Enumerated(EnumType.STRING)
     private Category category;
+
+    @Column(name = "due_at")
+    private Instant dueAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id")

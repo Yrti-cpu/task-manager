@@ -31,6 +31,13 @@ spring:
     cache-names: tasks,task,taskByStatus,taskByCategory,tasksByOwner
     redis:
       time-to-live: 5m
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+app:
+  kafka:
+    topics:
+      task-events: ${TASK_EVENTS_TOPIC:task-events}
 
 springdoc:
   swagger-ui:
