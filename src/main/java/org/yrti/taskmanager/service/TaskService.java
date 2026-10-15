@@ -10,6 +10,7 @@ import org.yrti.taskmanager.exception.ResourceNotFoundException;
 import org.yrti.taskmanager.dto.TaskCreateRequest;
 import org.yrti.taskmanager.dto.TaskDTO;
 import org.yrti.taskmanager.dto.TaskUpdateRequest;
+import org.yrti.taskmanager.dto.TaskPageResponse;
 import org.yrti.taskmanager.model.Task;
 import org.yrti.taskmanager.model.User;
 import org.yrti.taskmanager.model.enums.Category;
@@ -18,7 +19,12 @@ import org.yrti.taskmanager.dao.TaskRepository;
 import org.yrti.taskmanager.dao.UserRepository;
 import org.yrti.taskmanager.mapper.TaskMapper;
 
+import java.time.Instant;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 @Slf4j
 @Service
@@ -38,6 +44,25 @@ public class TaskService {
                 .stream()
                 .map(taskMapper::toDto)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public TaskPageResponse searchTasks(Status status, Instant from, Instant to, Pageable pageable) {
+        log.info("Searching tasks status={}, from={}, to={}, page={}, size={}",
+                status, from, to, pageable.getPageNumber(), pageable.getPageSize());
+
+        Pageable stablePageable = withStableSort(pageable);
+        Page<TaskDTO> page = taskRepository.search(status, from, to, stablePageable)
+                .map(taskMapper::toDto);
+
+        return new TaskPageResponse(
+                page.getContent(),
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isFirst(),
+                page.isLast());
     }
 
     @Cacheable(value = "task", key = "#id")
@@ -114,6 +139,16 @@ public class TaskService {
     private Task findTaskOrThrow(Long id) {
         return taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task", id));
+    }
+
+    private Pageable withStableSort(Pageable pageable) {
+        return PageRequest.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                Sort.by(
+                        Sort.Order.asc("dueAt"),
+                        Sort.Order.asc("createdAt"),
+                        Sort.Order.asc("id")));
     }
 
 }

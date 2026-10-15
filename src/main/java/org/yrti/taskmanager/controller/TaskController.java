@@ -9,11 +9,15 @@ import org.springframework.web.bind.annotation.*;
 import org.yrti.taskmanager.dto.TaskCreateRequest;
 import org.yrti.taskmanager.dto.TaskDTO;
 import org.yrti.taskmanager.dto.TaskUpdateRequest;
+import org.yrti.taskmanager.dto.TaskPageResponse;
 import org.yrti.taskmanager.model.enums.Status;
 import org.yrti.taskmanager.model.enums.Category;
 import org.yrti.taskmanager.service.TaskService;
 
+import java.time.Instant;
 import java.util.List;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 
 @Slf4j
 @RestController
@@ -26,6 +30,15 @@ public class TaskController {
     @GetMapping
     public ResponseEntity<List<TaskDTO>> getAllTasks() {
         return ResponseEntity.ok(taskService.getAllTasks());
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<TaskPageResponse> searchTasks(
+            @RequestParam(required = false) Status status,
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to,
+            @PageableDefault(size = 20, sort = {"dueAt", "createdAt", "id"}) Pageable pageable) {
+        return ResponseEntity.ok(taskService.searchTasks(status, from, to, pageable));
     }
 
     @GetMapping("/{id}")
