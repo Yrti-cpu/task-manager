@@ -9,3 +9,5 @@ databaseChangeLog:
       file: db/changelog/23-04-task-due-at.yaml
   - include:
       file: db/changelog/23-05-outbox-events.yaml
+  - include:
+      file: db/changelog/23-06-task-sequence.yaml

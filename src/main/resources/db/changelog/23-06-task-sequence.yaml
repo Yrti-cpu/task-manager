@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1790112223091-12
+      author: daniladotsenko
+      changes:
+        - createSequence:
+            sequenceName: tasks_seq
+            startValue: 1
+            incrementBy: 50
+        - sql:
+            sql: SELECT setval('tasks_seq', COALESCE((SELECT MAX(id) FROM tasks), 0) + 1, false)
