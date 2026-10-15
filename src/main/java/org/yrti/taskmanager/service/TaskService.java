@@ -17,7 +17,6 @@ import org.yrti.taskmanager.model.enums.Status;
 import org.yrti.taskmanager.dao.TaskRepository;
 import org.yrti.taskmanager.dao.UserRepository;
 import org.yrti.taskmanager.mapper.TaskMapper;
-import org.yrti.taskmanager.event.TaskEventPublisher;
 
 import java.util.List;
 
@@ -29,7 +28,7 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final TaskMapper taskMapper;
-    private final TaskEventPublisher taskEventPublisher;
+    private final OutboxEventService outboxEventService;
 
     @Cacheable("tasks")
     @Transactional(readOnly = true)
@@ -88,7 +87,7 @@ public class TaskService {
         Task task = taskMapper.toEntity(request, owner);
 
         Task saved = taskRepository.save(task);
-        taskEventPublisher.publishCreated(saved);
+        outboxEventService.enqueueCreated(saved);
         log.info("Task created id={}", saved.getId());
         return taskMapper.toDto(saved);
     }
@@ -100,7 +99,7 @@ public class TaskService {
         Task task = findTaskOrThrow(id);
         taskMapper.updateEntity(task, request);
         Task updated = taskRepository.save(task);
-        taskEventPublisher.publishUpdated(updated);
+        outboxEventService.enqueueUpdated(updated);
         return taskMapper.toDto(updated);
     }
 

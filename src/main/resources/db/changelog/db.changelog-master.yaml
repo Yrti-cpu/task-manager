@@ -7,3 +7,5 @@ databaseChangeLog:
       file: db/changelog/23-03-user-constraints.yaml
   - include:
       file: db/changelog/23-04-task-due-at.yaml
+  - include:
+      file: db/changelog/23-05-outbox-events.yaml

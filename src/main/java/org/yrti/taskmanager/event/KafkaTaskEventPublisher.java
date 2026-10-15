@@ -19,18 +19,14 @@ public class KafkaTaskEventPublisher implements TaskEventPublisher {
     }
 
     @Override
-    public void publishCreated(Task task) {
-        publish(TaskEvent.created(task.getId(), task.getOwner().getId(), task.getName(),
-                task.getStatus(), task.getCategory(), task.getDueAt()));
-    }
-
-    @Override
-    public void publishUpdated(Task task) {
-        publish(TaskEvent.updated(task.getId(), task.getOwner().getId(), task.getName(),
-                task.getStatus(), task.getCategory(), task.getDueAt()));
-    }
-
-    private void publish(TaskEvent event) {
-        kafkaTemplate.send(taskEventsTopic, event.taskId().toString(), event);
+    public void publish(TaskEvent event) {
+        try {
+            kafkaTemplate.send(taskEventsTopic, event.taskId().toString(), event).get();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while publishing task event " + event.eventId(), exception);
+        } catch (java.util.concurrent.ExecutionException exception) {
+            throw new IllegalStateException("Could not publish task event " + event.eventId(), exception.getCause());
+        }
     }
 }

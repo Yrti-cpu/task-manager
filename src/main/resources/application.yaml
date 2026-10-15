@@ -38,6 +38,11 @@ app:
   kafka:
     topics:
       task-events: ${TASK_EVENTS_TOPIC:task-events}
+  outbox:
+    dispatcher:
+      enabled: ${OUTBOX_DISPATCHER_ENABLED:false}
+      fixed-delay-ms: ${OUTBOX_DISPATCHER_FIXED_DELAY_MS:5000}
+      batch-size: ${OUTBOX_DISPATCHER_BATCH_SIZE:100}
 
 springdoc:
   swagger-ui:

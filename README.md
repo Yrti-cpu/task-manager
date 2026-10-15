@@ -17,6 +17,11 @@ Redis caching is enabled by default. To run locally without Redis, set
 `APP_CACHE_REDIS_ENABLED=false`; the application then uses an in-memory cache
 with the same cache names and service-level cache annotations.
 
+Task changes are persisted together with a transactional outbox event. Kafka
+dispatch is disabled by default for safe local and test runs; enable the
+retrying dispatcher with `OUTBOX_DISPATCHER_ENABLED=true` (optionally tune
+`OUTBOX_DISPATCHER_FIXED_DELAY_MS` and `OUTBOX_DISPATCHER_BATCH_SIZE`).
+
 ## Postman checks
 
 Set `baseUrl` to `http://localhost:8080` and use JSON bodies.

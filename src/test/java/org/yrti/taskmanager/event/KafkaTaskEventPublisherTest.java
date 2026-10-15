@@ -2,8 +2,6 @@ package org.yrti.taskmanager.event;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.yrti.taskmanager.model.Task;
-import org.yrti.taskmanager.model.User;
 import org.yrti.taskmanager.model.enums.Category;
 import org.yrti.taskmanager.model.enums.Status;
 
@@ -16,23 +14,16 @@ import static org.mockito.Mockito.verify;
 class KafkaTaskEventPublisherTest {
 
     @Test
-    void publishesCreatedEventUsingTaskKeyAndConfiguredTopic() {
+    void publishesEventUsingTaskKeyAndConfiguredTopic() {
         KafkaTemplate<String, TaskEvent> kafkaTemplate = mock(KafkaTemplate.class);
-        User owner = User.builder().id(7L).build();
-        Task task = Task.builder()
-                .id(11L)
-                .name("Write tests")
-                .status(Status.IN_PROGRESS)
-                .category(Category.WORK)
-                .dueAt(Instant.parse("2026-10-20T12:00:00Z"))
-                .owner(owner)
-                .build();
+        TaskEvent event = TaskEvent.created(11L, 7L, "Write tests", Status.IN_PROGRESS,
+                Category.WORK, Instant.parse("2026-10-20T12:00:00Z"));
 
-        new KafkaTaskEventPublisher(kafkaTemplate, "task-events").publishCreated(task);
+        new KafkaTaskEventPublisher(kafkaTemplate, "task-events").publish(event);
 
         verify(kafkaTemplate).send(eq("task-events"), eq("11"), sameEventWith(
                 "TASK_CREATED", 11L, 7L, "Write tests", Status.IN_PROGRESS,
-                Category.WORK, task.getDueAt()));
+                Category.WORK, event.dueAt()));
     }
 
     private static TaskEvent sameEventWith(String eventType, Long taskId, Long recipientUserId,

@@ -5,7 +5,6 @@ import org.yrti.taskmanager.dao.TaskRepository;
 import org.yrti.taskmanager.dao.UserRepository;
 import org.yrti.taskmanager.dto.TaskCreateRequest;
 import org.yrti.taskmanager.dto.TaskDTO;
-import org.yrti.taskmanager.event.TaskEventPublisher;
 import org.yrti.taskmanager.mapper.TaskMapper;
 import org.yrti.taskmanager.model.Task;
 import org.yrti.taskmanager.model.User;
@@ -27,8 +26,8 @@ class TaskServiceTest {
         TaskRepository taskRepository = mock(TaskRepository.class);
         UserRepository userRepository = mock(UserRepository.class);
         TaskMapper taskMapper = mock(TaskMapper.class);
-        TaskEventPublisher eventPublisher = mock(TaskEventPublisher.class);
-        TaskService service = new TaskService(taskRepository, userRepository, taskMapper, eventPublisher);
+        OutboxEventService outboxEventService = mock(OutboxEventService.class);
+        TaskService service = new TaskService(taskRepository, userRepository, taskMapper, outboxEventService);
 
         User owner = User.builder().id(7L).build();
         Task task = Task.builder().name("Write tests").owner(owner).build();
@@ -47,6 +46,6 @@ class TaskServiceTest {
         assertSame(dto, service.createTask(request));
 
         verify(taskRepository).save(task);
-        verify(eventPublisher).publishCreated(saved);
+        verify(outboxEventService).enqueueCreated(saved);
     }
 }
