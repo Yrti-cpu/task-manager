@@ -1,6 +1,6 @@
 # Task Manager API
 
-Spring Boot 4, Java 21, PostgreSQL, Liquibase and Redis. No UI or authentication.
+Spring Boot 4, Java 21, PostgreSQL, Liquibase and optional Redis. No UI or authentication.
 
 ## Run
 
@@ -12,6 +12,10 @@ docker compose up -d --wait
 The API is at `http://localhost:8080`; Swagger UI is at
 `http://localhost:8080/swagger-ui.html`. The first launch applies Liquibase
 migrations and inserts sample users and tasks.
+
+Redis caching is enabled by default. To run locally without Redis, set
+`APP_CACHE_REDIS_ENABLED=false`; the application then uses an in-memory cache
+with the same cache names and service-level cache annotations.
 
 ## Postman checks
 

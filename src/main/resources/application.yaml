@@ -27,14 +27,14 @@ spring:
       repositories:
         enabled: false
   cache:
-    type: redis
     cache-names: tasks,task,taskByStatus,taskByCategory,tasksByOwner
-    redis:
-      time-to-live: 5m
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
 app:
+  cache:
+    redis:
+      enabled: ${APP_CACHE_REDIS_ENABLED:true}
   kafka:
     topics:
       task-events: ${TASK_EVENTS_TOPIC:task-events}
