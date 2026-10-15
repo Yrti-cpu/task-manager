@@ -38,7 +38,7 @@ public class OutboxEventDispatcher {
     }
 
     public int dispatchPending() {
-        Instant now = Instant.now(clock);
+        var now = Instant.now(clock);
         List<OutboxEvent> events = outboxEventRepository
                 .findTop100ByStatusAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
                         OutboxEventStatus.PENDING, now)
@@ -57,7 +57,7 @@ public class OutboxEventDispatcher {
     private boolean dispatch(OutboxEvent outboxEvent, Instant now) {
         try {
             outboxEventService.markAttempt(outboxEvent, now);
-            TaskEvent event = objectMapper.readValue(outboxEvent.getPayload(), TaskEvent.class);
+            var event = objectMapper.readValue(outboxEvent.getPayload(), TaskEvent.class);
             taskEventPublisher.publish(event);
             outboxEventService.markPublished(outboxEvent, Instant.now(clock));
             return true;

@@ -12,7 +12,6 @@ import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.yrti.taskmanager.event.TaskEvent;
 
 import java.util.HashMap;
-import java.util.Map;
 
 @Configuration
 public class KafkaConfig {
@@ -20,7 +19,7 @@ public class KafkaConfig {
     @Bean
     public ProducerFactory<String, TaskEvent> taskEventProducerFactory(
             @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers) {
-        Map<String, Object> properties = new HashMap<>();
+        var properties = new HashMap<String, Object>();
         properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
