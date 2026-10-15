@@ -65,4 +65,27 @@ class TaskControllerTest {
                 eq(Instant.parse("2026-10-31T23:59:59Z")),
                 any());
     }
+
+    @Test
+    void searchesTasksWithOptionalFiltersOmittedAndDefaultPageable() throws Exception {
+        when(taskService.searchTasks(eq(null), eq(null), eq(null), any()))
+                .thenReturn(new TaskPageResponse(List.of(), 0, 20, 0, 0, true, true));
+
+        mockMvc.perform(get("/api/tasks/search"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.first").value(true))
+                .andExpect(jsonPath("$.last").value(true));
+
+        org.mockito.ArgumentCaptor<org.springframework.data.domain.Pageable> pageable =
+                org.mockito.ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class);
+        verify(taskService).searchTasks(eq(null), eq(null), eq(null), pageable.capture());
+        org.junit.jupiter.api.Assertions.assertEquals(0, pageable.getValue().getPageNumber());
+        org.junit.jupiter.api.Assertions.assertEquals(20, pageable.getValue().getPageSize());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                List.of("dueAt: ASC", "createdAt: ASC", "id: ASC"),
+                pageable.getValue().getSort().stream().map(Object::toString).toList());
+    }
 }

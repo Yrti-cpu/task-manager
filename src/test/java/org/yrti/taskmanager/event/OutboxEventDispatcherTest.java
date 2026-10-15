@@ -19,6 +19,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 
 class OutboxEventDispatcherTest {
 
@@ -58,6 +59,36 @@ class OutboxEventDispatcherTest {
 
         verify(outboxService).markAttempt(event, clock.instant());
         verify(outboxService).markFailed(any(OutboxEvent.class), any(Instant.class), any(IllegalStateException.class));
+        verify(outboxService, never()).markPublished(event, clock.instant());
+    }
+
+    @Test
+    void marksMalformedPayloadAsFailedWithoutPublishing() {
+        OutboxEvent event = pendingEvent();
+        event.setPayload("{not-json");
+        when(repository.findTop100ByStatusAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
+                OutboxEventStatus.PENDING, clock.instant())).thenReturn(List.of(event));
+
+        assertThat(dispatcher.dispatchPending()).isZero();
+
+        verify(outboxService).markAttempt(event, clock.instant());
+        verify(outboxService).markFailed(any(OutboxEvent.class), any(Instant.class),
+                any(com.fasterxml.jackson.core.JsonProcessingException.class));
+        verify(publisher, never()).publish(any(TaskEvent.class));
+    }
+
+    @Test
+    void respectsConfiguredBatchSize() {
+        OutboxEvent first = pendingEvent();
+        OutboxEvent second = pendingEvent();
+        when(repository.findTop100ByStatusAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
+                OutboxEventStatus.PENDING, clock.instant())).thenReturn(List.of(first, second));
+        org.springframework.test.util.ReflectionTestUtils.setField(dispatcher, "batchSize", 1);
+
+        assertThat(dispatcher.dispatchPending()).isEqualTo(1);
+
+        verify(outboxService).markPublished(first, clock.instant());
+        verify(outboxService, never()).markAttempt(second, clock.instant());
     }
 
     private OutboxEvent pendingEvent() {
