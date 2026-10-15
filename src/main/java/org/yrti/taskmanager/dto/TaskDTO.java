@@ -4,6 +4,7 @@ import org.yrti.taskmanager.model.enums.Category;
 import org.yrti.taskmanager.model.enums.Status;
 
 import java.time.LocalDateTime;
+import java.io.Serializable;
 
 public record TaskDTO(
         Long id,
@@ -14,5 +15,5 @@ public record TaskDTO(
         String ownerUsername,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
-) {
+) implements Serializable {
 }

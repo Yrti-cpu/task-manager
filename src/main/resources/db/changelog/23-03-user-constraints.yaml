@@ -1,0 +1,9 @@
+databaseChangeLog:
+  - changeSet:
+      id: unique-users-username
+      author: codex
+      changes:
+        - addUniqueConstraint:
+            tableName: users
+            columnNames: username
+            constraintName: uk_users_username

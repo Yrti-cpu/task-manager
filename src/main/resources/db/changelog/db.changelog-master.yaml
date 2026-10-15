@@ -3,3 +3,5 @@ databaseChangeLog:
       file: db/changelog/23-01-changelog.yaml
   - include:
       file: db/changelog/23-02-test-data.yaml
+  - include:
+      file: db/changelog/23-03-user-constraints.yaml

@@ -14,13 +14,23 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.PostgreSQLDialect
     open-in-view: false
     show-sql: false
 
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     enabled: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      repositories:
+        enabled: false
+  cache:
+    type: redis
+    cache-names: tasks,task,taskByStatus,taskByCategory,tasksByOwner
+    redis:
+      time-to-live: 5m
 
 springdoc:
   swagger-ui:

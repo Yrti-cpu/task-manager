@@ -3,7 +3,8 @@ package org.yrti.taskmanager.model;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.NoArgsConstructor;
 import org.yrti.taskmanager.model.enums.Category;
 import org.yrti.taskmanager.model.enums.Status;
@@ -13,14 +14,15 @@ import java.time.temporal.ChronoUnit;
 
 @Entity
 @Table(name = "tasks")
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class Task {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
     private Long id;
 
     private String name;

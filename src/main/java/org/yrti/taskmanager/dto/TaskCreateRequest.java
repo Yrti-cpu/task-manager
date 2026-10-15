@@ -1,12 +1,14 @@
 package org.yrti.taskmanager.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import org.yrti.taskmanager.model.enums.Category;
 import org.yrti.taskmanager.model.enums.Status;
 
 public record TaskCreateRequest(
-        String name,
-        Status status,
-        Category category,
-        Long ownerId
+        @NotBlank String name,
+        @NotNull Status status,
+        @NotNull Category category,
+        @NotNull Long ownerId
 ) {
 }

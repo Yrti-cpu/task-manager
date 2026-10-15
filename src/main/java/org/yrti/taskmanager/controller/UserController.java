@@ -2,7 +2,9 @@ package org.yrti.taskmanager.controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.yrti.taskmanager.dto.TaskDTO;
 import org.yrti.taskmanager.dto.UserCreateRequest;
@@ -20,29 +22,28 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping
-    public List<UserDTO> getAllUsers() {
-        return userService.getAllUsers();
+    public ResponseEntity<List<UserDTO>> getAllUsers() {
+        return ResponseEntity.ok(userService.getAllUsers());
     }
 
     @GetMapping("/{id}")
-    public UserDTO getUserById(@PathVariable Long id) {
-        return userService.getUserById(id);
+    public ResponseEntity<UserDTO> getUserById(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.getUserById(id));
     }
 
     @GetMapping("/{id}/tasks")
-    public List<TaskDTO> getTasksByUserId(@PathVariable Long id) {
-        return userService.getTasksByUserId(id);
+    public ResponseEntity<List<TaskDTO>> getTasksByUserId(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.getTasksByUserId(id));
     }
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public UserDTO createUser(@RequestBody UserCreateRequest request) {
-        return userService.createUser(request);
+    public ResponseEntity<UserDTO> createUser(@Valid @RequestBody UserCreateRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(userService.createUser(request));
     }
 
     @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteUser(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
+        return ResponseEntity.noContent().build();
     }
 }
