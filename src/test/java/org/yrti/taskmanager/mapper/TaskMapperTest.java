@@ -20,12 +20,15 @@ class TaskMapperTest {
 
     @Test
     void mapsCreateRequestWithOwner() {
+        // given
         User owner = User.builder().id(7L).username("alice").build();
         Instant dueAt = Instant.parse("2026-10-20T12:00:00Z");
         TaskCreateRequest request = new TaskCreateRequest("Write tests", Status.IN_PROGRESS, Category.WORK, owner.getId(), dueAt);
 
+        // when
         Task task = mapper.toEntity(request, owner);
 
+        // then
         assertEquals("Write tests", task.getName());
         assertEquals(Status.IN_PROGRESS, task.getStatus());
         assertEquals(Category.WORK, task.getCategory());
@@ -35,6 +38,7 @@ class TaskMapperTest {
 
     @Test
     void updatesExistingTaskWithoutReplacingOwner() {
+        // given
         User owner = User.builder().id(7L).username("alice").build();
         Task task = Task.builder()
                 .id(11L)
@@ -44,10 +48,12 @@ class TaskMapperTest {
                 .owner(owner)
                 .build();
         Instant dueAt = Instant.parse("2026-10-20T12:00:00Z");
-        TaskUpdateRequest request = new TaskUpdateRequest("New name", Status.COMPLETED, Category.EDUCATION, dueAt);
+        TaskUpdateRequest request = new TaskUpdateRequest("New name", Status.COMPLETED, Category.EDUCATION, dueAt, 0L);
 
+        // when
         mapper.updateEntity(task, request);
 
+        // then
         assertEquals(11L, task.getId());
         assertEquals("New name", task.getName());
         assertEquals(Status.COMPLETED, task.getStatus());

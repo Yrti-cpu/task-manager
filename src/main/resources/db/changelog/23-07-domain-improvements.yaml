@@ -46,6 +46,8 @@ databaseChangeLog:
             columnName: username
             columnDataType: VARCHAR(255)
         - sql:
+            sql: ALTER TABLE tasks ALTER COLUMN id DROP IDENTITY IF EXISTS
+        - sql:
             sql: ALTER TABLE tasks ALTER COLUMN id SET DEFAULT nextval('tasks_seq')
         - sql:
             sql: SELECT setval('tasks_seq', COALESCE((SELECT MAX(id) FROM tasks), 0) + 50, false)

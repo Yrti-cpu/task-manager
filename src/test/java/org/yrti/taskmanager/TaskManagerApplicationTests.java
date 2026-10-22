@@ -30,14 +30,23 @@ class TaskManagerApplicationTests {
 
     @Test
     void contextProvidesObjectMapperForOutboxEvents() {
-        assertThat(objectMapper).isNotNull();
+        // given
         java.time.Instant instant = java.time.Instant.parse("2026-10-22T00:00:00Z");
-        assertThat(objectMapper.readValue(objectMapper.writeValueAsString(instant), java.time.Instant.class))
-                .isEqualTo(instant);
+
+        // when
+        var restored = objectMapper.readValue(objectMapper.writeValueAsString(instant), java.time.Instant.class);
+
+        // then
+        assertThat(objectMapper).isNotNull();
+        assertThat(restored).isEqualTo(instant);
     }
 
     @Test
-    void defaultMigrationsDoNotSeedDemoUsersOrRetainPasswordColumn() {
+    void migrationsApplyWithoutDemoUsersAndPasswordColumn() {
+        // given
+        // контекст Spring Boot поднят с применёнными миграциями
+
+        // then
         assertThat(jdbc.queryForObject("select count(*) from users", Long.class)).isZero();
         assertThat(jdbc.queryForObject("""
                 select count(*) from information_schema.columns

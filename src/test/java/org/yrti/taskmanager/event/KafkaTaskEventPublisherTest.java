@@ -21,22 +21,33 @@ class KafkaTaskEventPublisherTest {
 
     @Test
     void usesTaskKeyAndWaitsForAcknowledgement() {
+        // given
         when(template.send("task-events", "11", event)).thenReturn(CompletableFuture.completedFuture(null));
+        // when
         publisher.publish(event);
+        // then
         verify(template).send("task-events", "11", event);
     }
 
     @Test
     void boundsAcknowledgementWait() throws Exception {
+        // given
         CompletableFuture<SendResult<String, TaskEvent>> future = mock(CompletableFuture.class);
         when(template.send("task-events", "11", event)).thenReturn(future);
         when(future.get(properties.getSendTimeout().toMillis(), TimeUnit.MILLISECONDS)).thenThrow(new TimeoutException());
-        assertThatThrownBy(() -> publisher.publish(event)).isInstanceOf(IllegalStateException.class).hasCauseInstanceOf(TimeoutException.class);
+        // when
+        assertThatThrownBy(() -> publisher.publish(event))
+                // then
+                .isInstanceOf(IllegalStateException.class).hasCauseInstanceOf(TimeoutException.class);
     }
 
     @Test
     void propagatesBrokerFailure() {
+        // given
         when(template.send("task-events", "11", event)).thenReturn(CompletableFuture.failedFuture(new IllegalArgumentException("broker")));
-        assertThatThrownBy(() -> publisher.publish(event)).isInstanceOf(IllegalStateException.class).hasCauseInstanceOf(IllegalArgumentException.class);
+        // when
+        assertThatThrownBy(() -> publisher.publish(event))
+                // then
+                .isInstanceOf(IllegalStateException.class).hasCauseInstanceOf(IllegalArgumentException.class);
     }
 }

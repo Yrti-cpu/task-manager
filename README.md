@@ -129,5 +129,9 @@ docker compose exec -T redis redis-cli --scan
 
 Docker is required for integration tests. Testcontainers starts isolated
 PostgreSQL containers on random ports; tests do not use the development database.
+The suite demonstrates Mockito unit tests, parameterized Jakarta Validation,
+MVC slices with `@MockitoBean`, and mandatory outbox transactions verified with
+`TransactionTemplate` against PostgreSQL. The sort-validation slice mocks the
+task service and checks that `InvalidTaskRequestException` maps to HTTP 400.
 JSON uses Spring Boot's auto-configured Jackson 3 `JsonMapper`; no deprecated
 Jackson 2 builder/configuration is needed.

@@ -22,11 +22,14 @@ class OutboxEventDispatcherTest {
 
     @Test
     void claimsJustBeforeEachSendAndRespectsBatchSize() {
+        // given
         OutboxEvent event = event();
         properties.setBatchSize(2);
         when(service.claim(1)).thenReturn(List.of(event));
         when(service.markPublished(event)).thenReturn(true);
+        // when
         assertThat(dispatcher.dispatchPending()).isEqualTo(2);
+        // then
         var order = inOrder(service, publisher);
         for (int i = 0; i < 2; i++) {
             order.verify(service).claim(1);
@@ -37,20 +40,26 @@ class OutboxEventDispatcherTest {
 
     @Test
     void retriesPublisherFailuresAndDoesNotMarkPublished() {
+        // given
         OutboxEvent event = event();
         when(service.claim(1)).thenReturn(List.of(event), List.of());
         doThrow(new IllegalStateException("unavailable")).when(publisher).publish(any());
+        // when
         assertThat(dispatcher.dispatchPending()).isZero();
+        // then
         verify(service).markFailed(eq(event), any(IllegalStateException.class));
         verify(service, never()).markPublished(any());
     }
 
     @Test
     void malformedPayloadDoesNotReachKafka() {
+        // given
         OutboxEvent event = OutboxEvent.builder().payload("{broken").build();
         when(service.claim(1)).thenReturn(List.of(event), List.of());
+        // when
         assertThat(dispatcher.dispatchPending()).isZero();
-        verify(service).markFailed(eq(event), any(RuntimeException.class));
+        // then
+        verify(service).markPermanentlyFailed(eq(event), any(RuntimeException.class));
         verifyNoInteractions(publisher);
     }
 

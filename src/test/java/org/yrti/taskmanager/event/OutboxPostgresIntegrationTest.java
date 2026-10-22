@@ -42,12 +42,14 @@ class OutboxPostgresIntegrationTest {
 
     @Test
     void skipLockedDoesNotClaimSameEventOrItsSuccessor() throws Exception {
+        // given
         insert(11, "PENDING", 0);
         insert(11, "PENDING", 0);
         long independent = insert(22, "PENDING", 0);
         CountDownLatch locked = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         try (var executor = Executors.newSingleThreadExecutor()) {
+            // when
             var transaction = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
                 var result = repository.lockClaimable(Instant.now(), 1);
                 locked.countDown();
@@ -62,25 +64,35 @@ class OutboxPostgresIntegrationTest {
                 return result.getFirst().getId();
             }));
             try {
+                // then
                 assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
+                // when
                 var claimed = service.claim(100);
+                // then
                 assertThat(claimed).extracting(OutboxEvent::getId).containsExactly(independent);
             } finally {
                 release.countDown();
             }
+            // then
             assertThat(transaction.get(10, TimeUnit.SECONDS)).isNotNull();
         }
     }
 
     @Test
     void expiredLeaseIsReclaimedAndOldWorkerCannotCompleteOrFail() {
+        // given
         long first = insert(11, "PENDING", 0);
         long second = insert(11, "PENDING", 0);
+        // when
         OutboxEvent old = service.claim(1).getFirst();
+        // then
         assertThat(old.getId()).isEqualTo(first);
         assertThat(service.claim(1)).isEmpty();
+        // given
         jdbc.update("UPDATE outbox_events SET lease_until = now() - interval '1 second' WHERE id = ?", first);
+        // when
         OutboxEvent replacement = service.claim(1).getFirst();
+        // then
         assertThat(replacement.getClaimToken()).isNotEqualTo(old.getClaimToken());
         assertThat(service.markPublished(old)).isFalse();
         assertThat(service.markFailed(old, new IllegalStateException("stale"))).isFalse();
@@ -90,23 +102,33 @@ class OutboxPostgresIntegrationTest {
 
     @Test
     void failedPredecessorBlocksSuccessorsAndOnlyPublishedRowsAreCleaned() {
+        // given
         long failed = insert(11, "PROCESSING", 10);
         jdbc.update("UPDATE outbox_events SET lease_until = now() - interval '1 second' WHERE id = ?", failed);
         insert(11, "PENDING", 0);
+        // when
         assertThat(service.claim(100)).isEmpty();
+        // then
         assertThat(jdbc.queryForObject("SELECT status FROM outbox_events WHERE id = ?", String.class, failed)).isEqualTo("FAILED");
+        // when
         assertThat(service.claim(100)).isEmpty();
+        // given
         long published = insert(22, "PUBLISHED", 1);
         jdbc.update("UPDATE outbox_events SET published_at = now() - interval '8 days' WHERE id = ?", published);
+        // when
         assertThat(service.cleanupPublished()).isEqualTo(1);
+        // then
         assertThat(repository.count()).isEqualTo(2);
     }
 
     @Test
     void retryBackoffPreventsImmediateReclaim() {
+        // given
         insert(11, "PENDING", 0);
         OutboxEvent claimed = service.claim(1).getFirst();
+        // when
         assertThat(service.markFailed(claimed, new IllegalStateException("broker down"))).isTrue();
+        // then
         assertThat(service.claim(1)).isEmpty();
         assertThat(jdbc.queryForObject("SELECT attempts FROM outbox_events WHERE id = ?", Integer.class, claimed.getId())).isEqualTo(1);
     }
