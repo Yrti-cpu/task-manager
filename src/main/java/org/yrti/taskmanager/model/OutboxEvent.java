@@ -5,8 +5,9 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
-import jakarta.persistence.PrePersist;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,7 +29,20 @@ import java.util.UUID;
 public class OutboxEvent {
 
     @Id
-    @Column(name = "event_id", nullable = false, updatable = false)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "outbox_sequence")
+    @SequenceGenerator(name = "outbox_sequence", sequenceName = "outbox_event_seq", allocationSize = 1)
+    private Long id;
+
+    @Column(name = "aggregate_id", nullable = false, updatable = false)
+    private Long aggregateId;
+
+    @Column(name = "claim_token")
+    private UUID claimToken;
+
+    @Column(name = "lease_until")
+    private Instant leaseUntil;
+
+    @Column(name = "event_id", nullable = false, updatable = false, unique = true)
     private UUID eventId;
 
     @Column(name = "event_type", nullable = false)
@@ -37,11 +51,9 @@ public class OutboxEvent {
     @Column(name = "event_version", nullable = false)
     private int eventVersion;
 
-    @Lob
     @Column(nullable = false, columnDefinition = "TEXT")
     private String payload;
 
-    @Lob
     @Column(columnDefinition = "TEXT")
     private String headers;
 
@@ -64,16 +76,4 @@ public class OutboxEvent {
     @Column(name = "last_error", columnDefinition = "TEXT")
     private String lastError;
 
-    @PrePersist
-    void initialize() {
-        if (status == null) {
-            status = OutboxEventStatus.PENDING;
-        }
-        if (nextAttemptAt == null) {
-            nextAttemptAt = Instant.now();
-        }
-        if (createdAt == null) {
-            createdAt = Instant.now();
-        }
-    }
 }

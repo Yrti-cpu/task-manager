@@ -9,9 +9,7 @@ import lombok.NoArgsConstructor;
 import org.yrti.taskmanager.model.enums.Category;
 import org.yrti.taskmanager.model.enums.Status;
 
-import java.time.LocalDateTime;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 
 @Entity
 @Table(name = "tasks")
@@ -20,11 +18,14 @@ import java.time.temporal.ChronoUnit;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Task {
+public class Task extends AuditedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
     private Long id;
+
+    @Version
+    private Long version;
 
     private String name;
 
@@ -41,17 +42,4 @@ public class Task {
     @JoinColumn(name = "owner_id")
     private User owner;
 
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-
-    @PrePersist
-    public void prePersist() {
-        createdAt = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
-        updatedAt = createdAt;
-    }
-
-    @PreUpdate
-    public void preUpdate() {
-        updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
-    }
 }

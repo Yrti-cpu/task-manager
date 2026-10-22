@@ -1,0 +1,55 @@
+databaseChangeLog:
+  - changeSet:
+      id: domain-improvements-1
+      author: codex
+      changes:
+        - dropColumn:
+            tableName: users
+            columnName: password
+        - sql:
+            sql: |
+              ALTER TABLE tasks ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE
+                USING created_at AT TIME ZONE 'UTC';
+              ALTER TABLE tasks ALTER COLUMN updated_at TYPE TIMESTAMP WITH TIME ZONE
+                USING updated_at AT TIME ZONE 'UTC';
+              ALTER TABLE users ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE
+                USING created_at AT TIME ZONE 'UTC';
+              ALTER TABLE users ALTER COLUMN updated_at TYPE TIMESTAMP WITH TIME ZONE
+                USING updated_at AT TIME ZONE 'UTC';
+        - addColumn:
+            tableName: tasks
+            columns:
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+        - addNotNullConstraint:
+            tableName: tasks
+            columnName: name
+            columnDataType: VARCHAR(255)
+        - addNotNullConstraint:
+            tableName: tasks
+            columnName: status
+            columnDataType: VARCHAR(255)
+        - addNotNullConstraint:
+            tableName: tasks
+            columnName: category
+            columnDataType: VARCHAR(255)
+        - addNotNullConstraint:
+            tableName: tasks
+            columnName: owner_id
+            columnDataType: BIGINT
+        - addNotNullConstraint:
+            tableName: users
+            columnName: username
+            columnDataType: VARCHAR(255)
+        - sql:
+            sql: ALTER TABLE tasks ALTER COLUMN id SET DEFAULT nextval('tasks_seq')
+        - sql:
+            sql: SELECT setval('tasks_seq', COALESCE((SELECT MAX(id) FROM tasks), 0) + 50, false)
+      rollback:
+        - dropColumn:
+            tableName: tasks
+            columnName: version

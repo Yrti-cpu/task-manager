@@ -2,9 +2,10 @@ package org.yrti.taskmanager.config;
 
 import java.util.Set;
 
-final class CacheNames {
+public final class CacheNames {
 
-    static final Set<String> ALL = Set.of("tasks", "task", "taskByStatus", "taskByCategory", "tasksByOwner");
+    public static final String TASK = "task";
+    public static final Set<String> ALL = Set.of(TASK);
 
     private CacheNames() {
     }

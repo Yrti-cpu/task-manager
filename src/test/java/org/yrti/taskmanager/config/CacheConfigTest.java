@@ -3,7 +3,7 @@ package org.yrti.taskmanager.config;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.cache.CacheManager;
-import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
+import org.springframework.cache.transaction.TransactionAwareCacheManagerProxy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -23,9 +23,9 @@ class CacheConfigTest {
                 .withUserConfiguration(RedisConnectionFactoryConfig.class)
                 .run(context -> {
                     assertThat(context).hasSingleBean(RedisCacheManager.class);
-                    assertThat(context).doesNotHaveBean(ConcurrentMapCacheManager.class);
+                    assertThat(context).doesNotHaveBean(TransactionAwareCacheManagerProxy.class);
                     assertThat(context.getBean(CacheManager.class).getCacheNames())
-                            .containsExactlyInAnyOrder("tasks", "task", "taskByStatus", "taskByCategory", "tasksByOwner");
+                            .containsExactlyInAnyOrderElementsOf(CacheNames.ALL);
                 });
     }
 
@@ -34,11 +34,38 @@ class CacheConfigTest {
         contextRunner
                 .withPropertyValues("app.cache.redis.enabled=false")
                 .run(context -> {
-                    assertThat(context).hasSingleBean(ConcurrentMapCacheManager.class);
+                    assertThat(context).hasSingleBean(TransactionAwareCacheManagerProxy.class);
                     assertThat(context).doesNotHaveBean(RedisCacheManager.class);
                     assertThat(context.getBean(CacheManager.class).getCacheNames())
-                            .containsExactlyInAnyOrder("tasks", "task", "taskByStatus", "taskByCategory", "tasksByOwner");
+                            .containsExactlyInAnyOrderElementsOf(CacheNames.ALL);
                 });
+    }
+
+    @Test
+    void localCacheIsBoundedAndExpiresEntries() {
+        TransactionAwareCacheManagerProxy manager = (TransactionAwareCacheManagerProxy)
+                new LocalCacheConfig().localCacheManager();
+        var cache = (com.github.benmanes.caffeine.cache.Cache<?, ?>)
+                manager.getCache(CacheNames.TASK).getNativeCache();
+        assertThat(cache.policy().eviction().orElseThrow().getMaximum()).isEqualTo(10_000);
+        assertThat(cache.policy().expireAfterWrite().orElseThrow().getExpiresAfter())
+                .isEqualTo(java.time.Duration.ofMinutes(5));
+    }
+
+    @Test
+    void localEvictionWaitsForTransactionCommit() {
+        var cache = new LocalCacheConfig().localCacheManager().getCache(CacheNames.TASK);
+        cache.put(1L, "task");
+        org.springframework.transaction.support.TransactionSynchronizationManager.initSynchronization();
+        try {
+            cache.evict(1L);
+            assertThat(cache.get(1L, String.class)).isEqualTo("task");
+            org.springframework.transaction.support.TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(org.springframework.transaction.support.TransactionSynchronization::afterCommit);
+            assertThat(cache.get(1L)).isNull();
+        } finally {
+            org.springframework.transaction.support.TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Configuration(proxyBeanMethods = false)

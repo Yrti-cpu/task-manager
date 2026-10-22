@@ -3,6 +3,7 @@ databaseChangeLog:
       file: db/changelog/23-01-changelog.yaml
   - include:
       file: db/changelog/23-02-test-data.yaml
+      contextFilter: "@demo"
   - include:
       file: db/changelog/23-03-user-constraints.yaml
   - include:
@@ -11,3 +12,7 @@ databaseChangeLog:
       file: db/changelog/23-05-outbox-events.yaml
   - include:
       file: db/changelog/23-06-task-sequence.yaml
+  - include:
+      file: db/changelog/23-07-domain-improvements.yaml
+  - include:
+      file: db/changelog/23-08-outbox-reliability.yaml

@@ -1,0 +1,27 @@
+databaseChangeLog:
+  - changeSet:
+      id: 23-08-outbox-reliability
+      author: copilot
+      changes:
+        - sql:
+            sql: |
+              CREATE SEQUENCE outbox_event_seq START WITH 1 INCREMENT BY 1;
+              ALTER TABLE outbox_events ADD COLUMN id BIGINT;
+              WITH numbered AS (
+                SELECT event_id, row_number() OVER (ORDER BY created_at, event_id) AS sequence_id
+                FROM outbox_events
+              ) UPDATE outbox_events e SET id = n.sequence_id FROM numbered n WHERE e.event_id = n.event_id;
+              SELECT setval('outbox_event_seq', COALESCE((SELECT MAX(id) FROM outbox_events), 0) + 1, false);
+              ALTER TABLE outbox_events ALTER COLUMN id SET DEFAULT nextval('outbox_event_seq');
+              ALTER TABLE outbox_events ALTER COLUMN id SET NOT NULL;
+              ALTER TABLE outbox_events DROP CONSTRAINT pk_outbox_events;
+              ALTER TABLE outbox_events ADD PRIMARY KEY (id);
+              ALTER TABLE outbox_events ADD CONSTRAINT uk_outbox_event_id UNIQUE (event_id);
+              ALTER TABLE outbox_events ADD COLUMN aggregate_id BIGINT;
+              UPDATE outbox_events SET aggregate_id = (payload::jsonb ->> 'taskId')::bigint;
+              ALTER TABLE outbox_events ALTER COLUMN aggregate_id SET NOT NULL;
+              ALTER TABLE outbox_events ADD COLUMN claim_token UUID;
+              ALTER TABLE outbox_events ADD COLUMN lease_until TIMESTAMP WITH TIME ZONE;
+              CREATE INDEX idx_outbox_aggregate_unpublished ON outbox_events (aggregate_id, id) WHERE status <> 'PUBLISHED';
+              CREATE INDEX idx_outbox_expired_lease ON outbox_events (lease_until) WHERE status = 'PROCESSING';
+              CREATE INDEX idx_outbox_retention ON outbox_events (published_at) WHERE status = 'PUBLISHED';

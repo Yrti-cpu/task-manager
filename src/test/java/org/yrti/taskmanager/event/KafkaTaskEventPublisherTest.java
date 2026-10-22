@@ -2,46 +2,41 @@ package org.yrti.taskmanager.event;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.yrti.taskmanager.model.enums.Category;
-import org.yrti.taskmanager.model.enums.Status;
+import org.springframework.kafka.support.SendResult;
+import org.yrti.taskmanager.config.OutboxProperties;
 
-import java.time.Instant;
+import java.time.Clock;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.*;
 
 class KafkaTaskEventPublisherTest {
+    private final KafkaTemplate<String, TaskEvent> template = mock(KafkaTemplate.class);
+    private final OutboxProperties properties = new OutboxProperties();
+    private final TaskEvent event = TaskEvent.created(11L, 7L, "test", null, null, null, Clock.systemUTC());
+    private final KafkaTaskEventPublisher publisher = new KafkaTaskEventPublisher(template, "task-events", properties);
 
     @Test
-    void publishesEventUsingTaskKeyAndConfiguredTopic() {
-        KafkaTemplate<String, TaskEvent> kafkaTemplate = mock(KafkaTemplate.class);
-        TaskEvent event = TaskEvent.created(11L, 7L, "Write tests", Status.IN_PROGRESS,
-                Category.WORK, Instant.parse("2026-10-20T12:00:00Z"));
-
-        new KafkaTaskEventPublisher(kafkaTemplate, "task-events").publish(event);
-
-        verify(kafkaTemplate).send(eq("task-events"), eq("11"), sameEventWith(
-                "TASK_CREATED", 11L, 7L, "Write tests", Status.IN_PROGRESS,
-                Category.WORK, event.dueAt()));
+    void usesTaskKeyAndWaitsForAcknowledgement() {
+        when(template.send("task-events", "11", event)).thenReturn(CompletableFuture.completedFuture(null));
+        publisher.publish(event);
+        verify(template).send("task-events", "11", event);
     }
 
-    private static TaskEvent sameEventWith(String eventType, Long taskId, Long recipientUserId,
-                                           String taskName, Status status, Category category,
-                                           Instant dueAt) {
-        return org.mockito.ArgumentMatchers.argThat(event ->
-                eventType.equals(event.eventType())
-                        && eventIdMatches(event)
-                        && event.eventVersion() == TaskEvent.CURRENT_VERSION
-                        && taskId.equals(event.taskId())
-                        && recipientUserId.equals(event.recipientUserId())
-                        && taskName.equals(event.taskName())
-                        && status == event.status()
-                        && category == event.category()
-                        && dueAt.equals(event.dueAt()));
+    @Test
+    void boundsAcknowledgementWait() throws Exception {
+        CompletableFuture<SendResult<String, TaskEvent>> future = mock(CompletableFuture.class);
+        when(template.send("task-events", "11", event)).thenReturn(future);
+        when(future.get(properties.getSendTimeout().toMillis(), TimeUnit.MILLISECONDS)).thenThrow(new TimeoutException());
+        assertThatThrownBy(() -> publisher.publish(event)).isInstanceOf(IllegalStateException.class).hasCauseInstanceOf(TimeoutException.class);
     }
 
-    private static boolean eventIdMatches(TaskEvent event) {
-        return event.eventId() != null && event.occurredAt() != null;
+    @Test
+    void propagatesBrokerFailure() {
+        when(template.send("task-events", "11", event)).thenReturn(CompletableFuture.failedFuture(new IllegalArgumentException("broker")));
+        assertThatThrownBy(() -> publisher.publish(event)).isInstanceOf(IllegalStateException.class).hasCauseInstanceOf(IllegalArgumentException.class);
     }
 }

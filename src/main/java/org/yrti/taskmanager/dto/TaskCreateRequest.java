@@ -9,10 +9,10 @@ import org.yrti.taskmanager.model.enums.Status;
 import java.time.Instant;
 
 public record TaskCreateRequest(
-        @NotBlank String name,
+        @NotBlank @jakarta.validation.constraints.Size(max = 255) String name,
         @NotNull Status status,
         @NotNull Category category,
-        @NotNull Long ownerId,
+        @NotNull @jakarta.validation.constraints.Positive Long ownerId,
         @FutureOrPresent Instant dueAt
 ) {
 }

@@ -1,154 +1,139 @@
 package org.yrti.taskmanager.service;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.yrti.taskmanager.exception.ResourceNotFoundException;
-import org.yrti.taskmanager.dto.TaskCreateRequest;
-import org.yrti.taskmanager.dto.TaskDTO;
-import org.yrti.taskmanager.dto.TaskUpdateRequest;
-import org.yrti.taskmanager.dto.TaskPageResponse;
-import org.yrti.taskmanager.model.Task;
-import org.yrti.taskmanager.model.User;
-import org.yrti.taskmanager.model.enums.Category;
-import org.yrti.taskmanager.model.enums.Status;
-import org.yrti.taskmanager.dao.TaskRepository;
-import org.yrti.taskmanager.dao.UserRepository;
-import org.yrti.taskmanager.mapper.TaskMapper;
-
-import java.time.Instant;
-import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.yrti.taskmanager.config.CacheNames;
+import org.yrti.taskmanager.dao.TaskRepository;
+import org.yrti.taskmanager.dao.UserRepository;
+import org.yrti.taskmanager.dto.PageResponse;
+import org.yrti.taskmanager.dto.TaskCreateRequest;
+import org.yrti.taskmanager.dto.TaskResponse;
+import org.yrti.taskmanager.dto.TaskUpdateRequest;
+import org.yrti.taskmanager.exception.InvalidTaskRequestException;
+import org.yrti.taskmanager.exception.ResourceNotFoundException;
+import org.yrti.taskmanager.exception.StaleTaskException;
+import org.yrti.taskmanager.mapper.TaskMapper;
+import org.yrti.taskmanager.model.Task;
+import org.yrti.taskmanager.model.User;
+import org.yrti.taskmanager.model.enums.Category;
+import org.yrti.taskmanager.model.enums.Status;
 
-@Slf4j
+import java.time.Clock;
+import java.time.Instant;
+import java.util.Set;
+
 @Service
 @RequiredArgsConstructor
 public class TaskService {
+    private static final Set<String> SORT_FIELDS = Set.of("id", "name", "status", "category", "dueAt", "createdAt", "updatedAt");
 
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final TaskMapper taskMapper;
     private final OutboxEventService outboxEventService;
+    private final Clock clock;
 
-    @Cacheable("tasks")
     @Transactional(readOnly = true)
-    public List<TaskDTO> getAllTasks() {
-        log.info("Fetching all tasks");
-        return taskRepository.findAll()
-                .stream()
-                .map(taskMapper::toDto)
-                .toList();
+    public PageResponse<TaskResponse> getAllTasks(Pageable pageable) {
+        return page(taskRepository.findAll(stable(pageable)));
     }
 
     @Transactional(readOnly = true)
-    public TaskPageResponse searchTasks(Status status, Instant from, Instant to, Pageable pageable) {
-        log.info("Searching tasks status={}, from={}, to={}, page={}, size={}",
-                status, from, to, pageable.getPageNumber(), pageable.getPageSize());
-
-        Pageable stablePageable = withStableSort(pageable);
-        Page<TaskDTO> page = taskRepository.search(status, from, to, stablePageable)
+    public PageResponse<TaskResponse> searchTasks(Status status, Instant from, Instant to, Pageable pageable) {
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new InvalidTaskRequestException("from must be before or equal to to");
+        }
+        Page<TaskResponse> result = taskRepository.search(status, from, to, stable(pageable))
                 .map(taskMapper::toDto);
-
-        return new TaskPageResponse(
-                page.getContent(),
-                page.getNumber(),
-                page.getSize(),
-                page.getTotalElements(),
-                page.getTotalPages(),
-                page.isFirst(),
-                page.isLast());
+        return new PageResponse<>(result);
     }
 
-    @Cacheable(value = "task", key = "#id")
+    @Cacheable(value = CacheNames.TASK, key = "#id")
     @Transactional(readOnly = true)
-    public TaskDTO getTaskById(Long id) {
-        log.info("Fetching task id={}", id);
-        return taskMapper.toDto(findTaskOrThrow(id));
+    public TaskResponse getTaskById(Long id) {
+        return taskMapper.toDto(findTask(id));
     }
 
-    @Cacheable(value = "taskByStatus", key = "#status.name()")
     @Transactional(readOnly = true)
-    public List<TaskDTO> getTasksByStatus(Status status) {
-        log.info("Fetching tasks by status={}", status);
-        return taskRepository.findAllByStatus(status)
-                .stream()
-                .map(taskMapper::toDto)
-                .toList();
+    public PageResponse<TaskResponse> getTasksByStatus(Status status, Pageable pageable) {
+        return page(taskRepository.findAllByStatus(status, stable(pageable)));
     }
 
-    @Cacheable(value = "taskByCategory", key = "#category.name()")
     @Transactional(readOnly = true)
-    public List<TaskDTO> getTasksByCategory(Category category) {
-        log.info("Fetching tasks by category={}", category);
-        return taskRepository.findAllByCategory(category)
-                .stream()
-                .map(taskMapper::toDto)
-                .toList();
+    public PageResponse<TaskResponse> getTasksByCategory(Category category, Pageable pageable) {
+        return page(taskRepository.findAllByCategory(category, stable(pageable)));
     }
 
-    @Cacheable(value = "tasksByOwner", key = "#ownerId")
     @Transactional(readOnly = true)
-    public List<TaskDTO> getTasksByOwner(Long ownerId) {
-        log.info("Fetching tasks by ownerId={}", ownerId);
-        return taskRepository.findAllByOwnerId(ownerId)
-                .stream()
-                .map(taskMapper::toDto)
-                .toList();
+    public PageResponse<TaskResponse> getTasksByOwner(Long ownerId, Pageable pageable) {
+        if (!userRepository.existsById(ownerId)) {
+            throw new ResourceNotFoundException("User", ownerId);
+        }
+        return page(taskRepository.findAllByOwnerId(ownerId, stable(pageable)));
     }
 
-    @CacheEvict(value = {"tasks", "task", "taskByStatus", "taskByCategory", "tasksByOwner"}, allEntries = true)
     @Transactional
-    public TaskDTO createTask(TaskCreateRequest request) {
-        log.info("Creating task name={}, ownerId={}", request.name(), request.ownerId());
+    public TaskResponse createTask(TaskCreateRequest request) {
         User owner = userRepository.findById(request.ownerId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", request.ownerId()));
-
         Task task = taskMapper.toEntity(request, owner);
-
-        Task saved = taskRepository.save(task);
+        Task saved = taskRepository.saveAndFlush(task);
         outboxEventService.enqueueCreated(saved);
-        log.info("Task created id={}", saved.getId());
         return taskMapper.toDto(saved);
     }
 
-    @CacheEvict(value = {"tasks", "task", "taskByStatus", "taskByCategory", "tasksByOwner"}, allEntries = true)
+    @CacheEvict(value = CacheNames.TASK, key = "#id")
     @Transactional
-    public TaskDTO updateTask(Long id, TaskUpdateRequest request) {
-        log.info("Updating task id={}", id);
-        Task task = findTaskOrThrow(id);
+    public TaskResponse updateTask(Long id, TaskUpdateRequest request) {
+        Task task = findTask(id);
+        if (task.getVersion() != null && !task.getVersion().equals(request.version())) {
+            throw new StaleTaskException(id);
+        }
+        if (request.dueAt() != null && !request.dueAt().equals(task.getDueAt())
+                && request.dueAt().isBefore(clock.instant())) {
+            throw new InvalidTaskRequestException("dueAt must not be in the past");
+        }
         taskMapper.updateEntity(task, request);
-        Task updated = taskRepository.save(task);
+        Task updated = taskRepository.saveAndFlush(task);
         outboxEventService.enqueueUpdated(updated);
         return taskMapper.toDto(updated);
     }
 
-    @CacheEvict(value = {"tasks", "task", "taskByStatus", "taskByCategory", "tasksByOwner"}, allEntries = true)
+    @CacheEvict(value = CacheNames.TASK, key = "#id")
     @Transactional
     public void deleteTask(Long id) {
-        log.info("Deleting task id={}", id);
-        Task task = findTaskOrThrow(id);
-        taskRepository.delete(task);
+        taskRepository.delete(findTask(id));
     }
 
-    private Task findTaskOrThrow(Long id) {
+    private Task findTask(Long id) {
         return taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task", id));
     }
 
-    private Pageable withStableSort(Pageable pageable) {
-        return PageRequest.of(
-                pageable.getPageNumber(),
-                pageable.getPageSize(),
-                Sort.by(
-                        Sort.Order.asc("dueAt"),
-                        Sort.Order.asc("createdAt"),
-                        Sort.Order.asc("id")));
+    private Pageable stable(Pageable pageable) {
+        Sort sort = Sort.unsorted();
+        for (Sort.Order order : pageable.getSort()) {
+            if (!SORT_FIELDS.contains(order.getProperty())) {
+                throw new InvalidTaskRequestException("Unsupported sort field: " + order.getProperty());
+            }
+            sort = sort.and(Sort.by(order));
+        }
+        if (sort.isUnsorted()) {
+            sort = Sort.by(Sort.Order.asc("dueAt"));
+        }
+        boolean hasId = sort.stream().anyMatch(order -> order.getProperty().equals("id"));
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                hasId ? sort : sort.and(Sort.by("id")));
     }
 
+    private PageResponse<TaskResponse> page(Page<Task> page) {
+        return new PageResponse<>(page.map(taskMapper::toDto));
+    }
 }

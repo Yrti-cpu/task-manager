@@ -10,17 +10,52 @@ docker compose up -d --wait
 ```
 
 The API is at `http://localhost:8080`; Swagger UI is at
-`http://localhost:8080/swagger-ui.html`. The first launch applies Liquibase
-migrations and inserts sample users and tasks.
+`http://localhost:8080/swagger-ui.html`. The first launch applies Liquibase migrations. Sample data is opt-in:
+set `SPRING_LIQUIBASE_CONTEXTS=demo` on a fresh database to insert sample users
+and tasks. Passwords are not accepted or stored; this API has no authentication.
 
 Redis caching is enabled by default. To run locally without Redis, set
 `APP_CACHE_REDIS_ENABLED=false`; the application then uses an in-memory cache
 with the same cache names and service-level cache annotations.
 
 Task changes are persisted together with a transactional outbox event. Kafka
-dispatch is disabled by default for safe local and test runs; enable the
-retrying dispatcher with `OUTBOX_DISPATCHER_ENABLED=true` (optionally tune
-`OUTBOX_DISPATCHER_FIXED_DELAY_MS` and `OUTBOX_DISPATCHER_BATCH_SIZE`).
+and the retrying outbox dispatcher are enabled by default for local development.
+`docker compose up -d --wait` starts PostgreSQL, Redis and a single-node Kafka
+3.9 broker/controller in KRaft mode (no ZooKeeper), with persistent storage and
+a broker healthcheck. The application itself is run separately with Maven.
+
+Applications on the host connect to `localhost:9092`; services in the Compose
+network must use `kafka:29092` (`KAFKA_BOOTSTRAP_SERVERS=kafka:29092`). These
+PLAINTEXT listeners are for local development only. Topic auto-creation is
+enabled, including the default `task-events` topic on first publication.
+
+Disable dispatch explicitly with `OUTBOX_DISPATCHER_ENABLED=false` when Kafka
+is not needed. Optionally tune `OUTBOX_DISPATCHER_FIXED_DELAY_MS` and
+`OUTBOX_DISPATCHER_BATCH_SIZE`.
+
+There is no application container in this Compose file. The notification/SSE
+service lives in a separate directory and is managed independently; start it
+with the same topic and the appropriate Kafka listener to complete the flow.
+A future application container should depend on healthy `postgres`, `redis`
+and `kafka` services.
+
+The dispatcher atomically claims events with PostgreSQL `SKIP LOCKED` and an
+expiring lease/token. Events for a task are sent in outbox sequence order;
+a failed predecessor blocks later events for that task. Delivery is at-least-once:
+consumers must deduplicate `eventId`, including after a successful Kafka send
+followed by a database failure.
+
+Additional `app.outbox.dispatcher` settings (also configurable with Spring's
+standard environment variable binding): `max-attempts` (10), `lease-duration`
+(2m), `send-timeout` (10s), `initial-backoff` (30s), `max-backoff` (1h), and
+`retention` (7d). Durations and batch size are validated on startup. Permanent
+payload errors and exhausted retries become `FAILED`; transient errors use
+exponential backoff. Published rows are cleaned up after retention.
+
+Monitor `FAILED` rows: after investigating and correcting the cause, an operator
+may explicitly reset a failed row to `PENDING` with `attempts=0` and
+`next_attempt_at=now()`. Do not discard or replay events blindly: failed events
+intentionally block subsequent events for their aggregate.
 
 ## Postman checks
 
@@ -47,28 +82,52 @@ Example task creation body:
 Example update body:
 
 ```json
-{"name":"Finish a book","status":"COMPLETED","category":"EDUCATION"}
+{"name":"Finish a book","status":"COMPLETED","category":"EDUCATION","version":0}
 ```
 
 Allowed statuses: `IN_PROGRESS`, `COMPLETED`, `FAILED`, `CANCELED`.
 Allowed categories: `HOME`, `WORK`, `EDUCATION`, `HEALTH`, `HOBBY`, `OTHER`.
 
-## Checking Redis in Postman
+## Pagination and concurrency
 
-Send `GET /api/tasks/by-category/WORK` several times and compare Postman's
-response time. The first request reads PostgreSQL; later requests use Redis for
-five minutes. The application logs `Loading tasks by category=WORK from database`
-only on a cache miss. You can confirm the key with:
+All task/user collection endpoints return a page envelope, not a bare JSON array.
+Use `?page=0&size=20`; task search accepts `status`, `from`, `to` and an allowed
+`sort` field. Sorting includes `id` as a tie-breaker. Invalid date ranges are
+rejected with `400`.
+
+Task responses contain `version`. Send the last version read in every update;
+a stale version returns `409` rather than overwriting another client's changes.
+A new deadline must not be in the past; updating a task may preserve its existing
+overdue deadline or clear it with `null`.
+
+Create a user with `{"username":"alice"}`. Names are limited to 255 characters.
+Audit timestamps use UTC instants. The timestamp migration treats legacy
+zone-less timestamps as UTC; back up an existing database before upgrading.
+
+## Caching
+
+Only `GET /api/tasks/{id}` is cached. Lists are paginated database queries and
+fetch owner data without per-row lazy queries. Updating/deleting a task evicts
+only its cache key after the database transaction commits.
+
+Redis entries expire after five minutes. Local mode uses Caffeine with the same
+TTL and a maximum of 10,000 entries. Local caches are process-local: use Redis
+when running multiple application instances. Cache names are defined solely in
+`CacheNames`; manually configured managers do not use `spring.cache.cache-names`.
+
+Inspect Redis keys with:
 
 ```bash
 docker compose exec -T redis redis-cli --scan
 ```
 
-After a task is created, updated or deleted, all task cache entries are removed
-so the next GET reads fresh data. Postman timings include network and client
-overhead, so run several requests rather than comparing only one pair. For a
-baseline without cache, restart the app with `SPRING_CACHE_TYPE=none`.
+## Tests
 
-DTOs keep HTTP payloads separate from JPA entities: request DTOs contain only
-fields clients may set, response DTOs include useful task/owner fields but never
-expose the user's password. Mappers perform these conversions in one place.
+```bash
+./mvnw test
+```
+
+Docker is required for integration tests. Testcontainers starts isolated
+PostgreSQL containers on random ports; tests do not use the development database.
+JSON uses Spring Boot's auto-configured Jackson 3 `JsonMapper`; no deprecated
+Jackson 2 builder/configuration is needed.

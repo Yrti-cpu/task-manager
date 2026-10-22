@@ -1,36 +1,25 @@
 package org.yrti.taskmanager.event;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.yrti.taskmanager.dao.OutboxEventRepository;
+import org.yrti.taskmanager.config.OutboxProperties;
 import org.yrti.taskmanager.model.OutboxEvent;
-import org.yrti.taskmanager.model.enums.OutboxEventStatus;
 import org.yrti.taskmanager.service.OutboxEventService;
-
-import java.time.Clock;
-import java.time.Instant;
-import java.util.List;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "app.outbox.dispatcher.enabled", havingValue = "true")
 public class OutboxEventDispatcher {
-
-    private final OutboxEventRepository outboxEventRepository;
     private final OutboxEventService outboxEventService;
     private final TaskEventPublisher taskEventPublisher;
-    private final ObjectMapper objectMapper;
-    private final Clock clock;
-
-    @Value("${app.outbox.dispatcher.batch-size:100}")
-    private int batchSize = 100;
+    private final JsonMapper objectMapper;
+    private final OutboxProperties properties;
 
     @Scheduled(fixedDelayString = "${app.outbox.dispatcher.fixed-delay-ms:5000}")
     public void dispatchScheduled() {
@@ -38,33 +27,65 @@ public class OutboxEventDispatcher {
     }
 
     public int dispatchPending() {
-        var now = Instant.now(clock);
-        List<OutboxEvent> events = outboxEventRepository
-                .findTop100ByStatusAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
-                        OutboxEventStatus.PENDING, now)
-                .stream()
-                .limit(batchSize)
-                .toList();
         int published = 0;
-        for (OutboxEvent event : events) {
-            if (dispatch(event, now)) {
+        // Claim just before sending so queued events cannot exhaust their leases while waiting on Kafka.
+        for (int i = 0; i < properties.getBatchSize() && !Thread.currentThread().isInterrupted(); i++) {
+            var events = outboxEventService.claim(1);
+            if (events.isEmpty()) {
+                break;
+            }
+            if (dispatch(events.getFirst())) {
                 published++;
             }
         }
         return published;
     }
 
-    private boolean dispatch(OutboxEvent outboxEvent, Instant now) {
+    @Scheduled(fixedDelayString = "${app.outbox.dispatcher.cleanup-delay-ms:3600000}")
+    public void cleanupPublished() {
+        outboxEventService.cleanupPublished();
+    }
+
+    private boolean dispatch(OutboxEvent outboxEvent) {
+        TaskEvent event;
         try {
-            outboxEventService.markAttempt(outboxEvent, now);
-            var event = objectMapper.readValue(outboxEvent.getPayload(), TaskEvent.class);
-            taskEventPublisher.publish(event);
-            outboxEventService.markPublished(outboxEvent, Instant.now(clock));
-            return true;
-        } catch (JsonProcessingException | RuntimeException exception) {
-            outboxEventService.markFailed(outboxEvent, Instant.now(clock), exception);
-            log.warn("Could not publish outbox event {}", outboxEvent.getEventId(), exception);
+            event = objectMapper.readValue(outboxEvent.getPayload(), TaskEvent.class);
+            if (event == null || event.eventId() == null || event.taskId() == null) {
+                throw new IllegalArgumentException("Outbox payload must contain eventId and taskId");
+            }
+        } catch (JacksonException exception) {
+            recordFailure(outboxEvent, exception, true);
             return false;
+        } catch (IllegalArgumentException exception) {
+            recordFailure(outboxEvent, exception, true);
+            return false;
+        }
+
+        try {
+            taskEventPublisher.publish(event);
+            boolean published = outboxEventService.markPublished(outboxEvent);
+            if (!published) {
+                log.warn("Lost claim while marking outbox event {} as published", outboxEvent.getEventId());
+            }
+            return published;
+        } catch (RuntimeException exception) {
+            recordFailure(outboxEvent, exception, false);
+            return false;
+        }
+    }
+
+    private void recordFailure(OutboxEvent event, RuntimeException exception, boolean permanent) {
+        log.warn("Could not dispatch outbox event {} (permanent={})", event.getEventId(), permanent, exception);
+        try {
+            boolean recorded = permanent
+                    ? outboxEventService.markPermanentlyFailed(event, exception)
+                    : outboxEventService.markFailed(event, exception);
+            if (!recorded) {
+                log.warn("Lost claim while recording failure for outbox event {}", event.getEventId());
+            }
+        } catch (RuntimeException persistenceException) {
+            log.error("Could not persist failure for outbox event {}; lease recovery will retry it",
+                    event.getEventId(), persistenceException);
         }
     }
 }

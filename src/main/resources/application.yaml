@@ -21,13 +21,15 @@ spring:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     enabled: true
   data:
+    web:
+      pageable:
+        default-page-size: 20
+        max-page-size: 100
     redis:
       host: localhost
       port: 6379
       repositories:
         enabled: false
-  cache:
-    cache-names: tasks,task,taskByStatus,taskByCategory,tasksByOwner
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
@@ -40,7 +42,7 @@ app:
       task-events: ${TASK_EVENTS_TOPIC:task-events}
   outbox:
     dispatcher:
-      enabled: ${OUTBOX_DISPATCHER_ENABLED:false}
+      enabled: ${OUTBOX_DISPATCHER_ENABLED:true}
       fixed-delay-ms: ${OUTBOX_DISPATCHER_FIXED_DELAY_MS:5000}
       batch-size: ${OUTBOX_DISPATCHER_BATCH_SIZE:100}
 
